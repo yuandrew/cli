@@ -12,23 +12,6 @@ jobs:
     defaults:
       run:
         shell: bash
-
-#  build-test:
-#    strategy:
-#      fail-fast: true
-#      matrix:
-#        os: [ubuntu-latest, macos-latest, macos-13, windows-latest, ubuntu-arm]
-#        include:
-#          - os: ubuntu-latest
-#            checkGenCodeTarget: true
-#            cloudTestTarget: true
-#          - os: ubuntu-arm
-#            runsOn: buildjet-4vcpu-ubuntu-2204-arm
-#    runs-on: ${{ matrix.runsOn || matrix.os }}
-#    env:
-#      # We can't check this directly in the cloud test's `if:` condition below,
-#      # so we have to check it here and report it in an env variable.
-#      HAS_SECRETS: ${{ secrets.TEMPORAL_CLIENT_CERT != '' && secrets.TEMPORAL_CLIENT_KEY != '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -61,21 +44,14 @@ jobs:
           go run .
 
       - name: Publish generated docs to documentation repo
-#      - name: Test cloud
-#        if: ${{ matrix.cloudTestTarget && env.HAS_SECRETS == 'true' }}
-#        env:
-#          TEMPORAL_ADDRESS: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}.tmprl.cloud:7233
-#          TEMPORAL_NAMESPACE: ${{ vars.TEMPORAL_CLIENT_NAMESPACE }}
-#          TEMPORAL_TLS_CERT: client.crt
-#          TEMPORAL_TLS_CERT_CONTENT: ${{ secrets.TEMPORAL_CLIENT_CERT }}
-#          TEMPORAL_TLS_KEY: client.key
-#          TEMPORAL_TLS_KEY_CONTENT: ${{ secrets.TEMPORAL_CLIENT_KEY }}
-#        shell: bash
         run: |
           set -e
           set -x
           
           BRANCH_NAME="cli-update-docs-${{ github.ref_name }}"
+          # Remove the "/merge" suffix if it exists
+          BRANCH_NAME=${BRANCH_NAME%/merge}
+          echo "Branch name: $BRANCH_NAME"
           
           cd docs
           
@@ -86,12 +62,9 @@ jobs:
             https://api.github.com/users/yuandrew)
 
           # Extract the email field from the API response
-          AUTHOR_LOGIN=$(echo "$API_RESPONSE" | jq -r '.author.login')
+          AUTHOR_LOGIN=$(echo "$API_RESPONSE" | jq -r '.login')
           echo "author_login: $AUTHOR_LOGIN"
-          EMAIL=$(echo "$API_RESPONSE" | jq -r '.author.email')
-          echo "EMAIL: $EMAIL"
           EMAIL=$(echo "$API_RESPONSE" | jq -r '.email')
-          echo "EMAIL: $EMAIL"
 
           # If no public email is found, fallback to a default
           if [ "$EMAIL" == "null" ]; then
@@ -103,7 +76,7 @@ jobs:
           
           # Setup the committers identity.
           git config --global user.email "$EMAIL"
-          git config --global user.name "yuandrew"
+          git config --global user.name "$AUTHOR_LOGIN"
           
           git checkout -b $BRANCH_NAME
           cp ../cli/temporalcli/docs/*.mdx docs/cli/
